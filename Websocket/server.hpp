@@ -51,31 +51,30 @@ using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 
+static size_t session_next_id = 0;
 
 // Echoes back all received WebSocket messages
-template <class T, class S>
-class Session : public std::enable_shared_from_this<S>
-{
+template<class T, class S>
+class Session : public std::enable_shared_from_this<S> {
 protected:
+    size_t session_id;
     websocket::stream<beast::tcp_stream> ws_;
     beast::flat_buffer buffer_;
-    T* data_;
+    T *data_;
 
 public:
     explicit
     // Take ownership of the socket
-    Session(tcp::socket&& socket,T* data)
-            : ws_(std::move(socket))
-            , data_(data)
-    {
+    Session(tcp::socket &&socket, T *data)
+            : ws_(std::move(socket)), data_(data) {
+        session_id = session_next_id++;
         ws_.binary(true);
         ws_.auto_fragment(true);
-        }
+    }
 
     // Get on the correct executor
     void
-    run()
-    {
+    run() {
         // We need to be executing within a strand to perform async operations
         // on the I/O objects in this Session. Although not strictly necessary
         // for single-threaded contexts, this example code is written to be
@@ -88,8 +87,7 @@ public:
 
     // Start the asynchronous operation
     void
-    on_run()
-    {
+    on_run() {
         // Set suggested timeout settings for the websocket
         ws_.set_option(
                 websocket::stream_base::timeout::suggested(
@@ -106,8 +104,7 @@ public:
 
         // Set a decorator to change the Server of the handshake
         ws_.set_option(websocket::stream_base::decorator(
-                [](websocket::response_type& res)
-                {
+                [](websocket::response_type &res) {
                     res.set(http::field::server,
                             std::string(BOOST_BEAST_VERSION_STRING) +
                             " websocket-server-async");
@@ -127,9 +124,8 @@ public:
     }
 
     void
-    on_accept(beast::error_code ec)
-    {
-        if(ec)
+    on_accept(beast::error_code ec) {
+        if (ec)
             return socketError(ec, "accept");
 
         // Read a message
@@ -137,8 +133,7 @@ public:
     }
 
     void
-    do_read()
-    {
+    do_read() {
         double test = 1.0;
 
         // Read a message into our buffer
@@ -152,22 +147,21 @@ public:
     void
     on_read(
             beast::error_code ec,
-            std::size_t bytes_transferred)
-    {
+            std::size_t bytes_transferred) {
         std::cout << "Basic on_read" << std::endl;
 
         boost::ignore_unused(bytes_transferred);
 
         // This indicates that the Session was closed
-        if(ec == websocket::error::closed)
+        if (ec == websocket::error::closed)
             return;
 
-        if(ec)
+        if (ec)
             socketError(ec, "read");
 
     }
 
-    void do_write(std::string to_send){
+    void do_write(std::string to_send) {
         buffer_.consume(buffer_.size());
         ws_.async_write(
                 boost::asio::buffer(to_send, to_send.length()),
@@ -179,27 +173,23 @@ public:
     void
     on_write(
             beast::error_code ec,
-            std::size_t bytes_transferred)
-    {
+            std::size_t bytes_transferred) {
         boost::ignore_unused(bytes_transferred);
 
 
-
-        if(ec == websocket::error::closed)
+        if (ec == websocket::error::closed)
             return;
-        if(ec)
+        if (ec)
             return socketError(ec, "write");
-
 
 
         do_read();
     }
 
     void
-    on_close(beast::error_code ec)
-    {
-        std::cout << "Closing socket"<< std::endl;
-        if(ec)
+    on_close(beast::error_code ec) {
+        std::cout << "Closing socket" << std::endl;
+        if (ec)
             return socketError(ec, "close");
 
         // If we get here then the connection is closed gracefully
@@ -213,45 +203,38 @@ public:
 //------------------------------------------------------------------------------
 
 // Accepts incoming connections and launches the Sessions
-template <class T, class L,  class S>
-class Listener : public std::enable_shared_from_this<L>
-{
+template<class T, class L, class S>
+class Listener : public std::enable_shared_from_this<L> {
 protected:
-    net::io_context& ioc_;
+    net::io_context &ioc_;
     tcp::acceptor acceptor_;
-    T* data_;
+    T *data_;
 
 public:
     Listener(
-            net::io_context& ioc,
+            net::io_context &ioc,
             tcp::endpoint endpoint,
-            T* data)
-            : ioc_(ioc)
-            , acceptor_(ioc)
-            , data_(data)
-    {
+            T *data)
+            : ioc_(ioc), acceptor_(ioc), data_(data) {
         beast::error_code ec;
 
         // Open the acceptor
         acceptor_.open(endpoint.protocol(), ec);
-        if(ec)
-        {
+        if (ec) {
             socketError(ec, "open");
             return;
         }
 
         // Allow address reuse
         acceptor_.set_option(net::socket_base::reuse_address(true), ec);
-        if(ec)
-        {
+        if (ec) {
             socketError(ec, "set_option");
             return;
         }
 
         // Bind to the server address
         acceptor_.bind(endpoint, ec);
-        if(ec)
-        {
+        if (ec) {
             socketError(ec, "bind");
             return;
         }
@@ -259,8 +242,7 @@ public:
         // Start listening for connections
         acceptor_.listen(
                 net::socket_base::max_listen_connections, ec);
-        if(ec)
-        {
+        if (ec) {
             socketError(ec, "listen");
             return;
         }
@@ -268,15 +250,13 @@ public:
 
     // Start accepting incoming connections
     void
-    run()
-    {
+    run() {
         do_accept();
     }
 
 protected:
     void
-    do_accept()
-    {
+    do_accept() {
         // The new connection gets its own strand
         acceptor_.async_accept(
                 net::make_strand(ioc_),
@@ -286,16 +266,12 @@ protected:
     }
 
     void
-    on_accept(beast::error_code ec, tcp::socket socket)
-    {
-        if(ec)
-        {
+    on_accept(beast::error_code ec, tcp::socket socket) {
+        if (ec) {
             socketError(ec, "accept");
-        }
-        else
-        {
+        } else {
             // Create the Session and run it
-            std::make_shared<S>(std::move(socket),data_)->run();
+            std::make_shared<S>(std::move(socket), data_)->run();
         }
 
         // Accept another connection
@@ -304,8 +280,8 @@ protected:
 
 };
 
-template <class T,class L>
-void server(std::string strAddress, unsigned short port,unsigned short nbThreads, T* data){
+template<class T, class L>
+void server(std::string strAddress, unsigned short port, unsigned short nbThreads, T *data) {
 
     auto const address = net::ip::make_address(strAddress);
     auto const threads = std::max<int>(1, nbThreads);
@@ -319,16 +295,13 @@ void server(std::string strAddress, unsigned short port,unsigned short nbThreads
     // Run the I/O service on the requested number of threads
     std::vector<std::thread> v;
     v.reserve(threads - 1);
-    for(auto i = threads - 1; i > 0; --i)
+    for (auto i = threads - 1; i > 0; --i)
         v.emplace_back(
-                [&ioc]
-                {
+                [&ioc] {
                     ioc.run();
                 });
     ioc.run();
 }
-
-
 
 
 #endif //PLANETIO_SERVER_H

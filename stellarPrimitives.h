@@ -42,11 +42,20 @@ public:
 };
 
 void displayBody(Body body);
+
 void displayBody(Body body, bool displayDead);
 
 std::string stringify(Body body);
 
 std::string stringify(Body bodies[], unsigned nbBodies);
+
+class Blackhole {
+public:
+    Vector position;
+    double mass;
+    double radius;
+    unsigned playerId;
+};
 
 
 #endif //PLANETIO_STELLARPRIMITIVES_H

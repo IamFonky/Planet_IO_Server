@@ -8,7 +8,6 @@
 
 // Report a socket error
 void
-socketError(boost::beast::error_code ec, char const* what)
-{
+socketError(boost::beast::error_code ec, char const *what) {
     std::cerr << what << ": " << ec.message() << "\n";
 }

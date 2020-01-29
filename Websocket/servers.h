@@ -6,10 +6,12 @@
 
 #include <vector>
 
-#include "../stellarPrimitives.h"
+#include "../stellarEngine.h"
 
-void socketError(boost::beast::error_code ec, char const* what);
-void dataServer(std::string strAddress, unsigned short port,unsigned short nbThreads, Body* universe);
-void eventServer(std::string strAddress, unsigned short port,unsigned short nbThreads, std::vector<Body>* blackholes);
+void socketError(boost::beast::error_code ec, char const *what);
+
+void dataServer(std::string strAddress, unsigned short port, unsigned short nbThreads, Body *bodies);
+
+void eventServer(std::string strAddress, unsigned short port, unsigned short nbThreads, Universe *universe);
 
 #endif //PLANETIO_SERVERS_H
