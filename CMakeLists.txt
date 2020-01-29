@@ -10,6 +10,6 @@ add_executable(planetIO main.cpp  stellarPrimitives.cpp stellarEngine.cpp Websoc
 find_package(Boost REQUIRED COMPONENTS)
 
 include_directories(${Boost_INCLUDE_DIR})
-include_directories(rapidjson)
+include_directories(rjson)
 # Note: a target should be already defined using 'add_executable' or 'add_library'
 target_link_libraries(planetIO ${Boost_LIBRARIES})
