@@ -51,7 +51,7 @@ using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 
 //------------------------------------------------------------------------------
 
-static size_t session_next_id = 0;
+static size_t session_next_id = 1;
 
 // Echoes back all received WebSocket messages
 template<class T, class S>
@@ -85,6 +85,7 @@ public:
                               std::enable_shared_from_this<S>::shared_from_this()));
     }
 
+protected:
     // Start the asynchronous operation
     void
     on_run() {
@@ -123,6 +124,7 @@ public:
                         std::enable_shared_from_this<S>::shared_from_this()));
     }
 
+    virtual
     void
     on_accept(beast::error_code ec) {
         if (ec)
@@ -132,10 +134,9 @@ public:
         do_read();
     }
 
+    virtual
     void
     do_read() {
-        double test = 1.0;
-
         // Read a message into our buffer
         ws_.async_read(
                 buffer_,
@@ -144,6 +145,7 @@ public:
                         std::enable_shared_from_this<S>::shared_from_this()));
     }
 
+    virtual
     void
     on_read(
             beast::error_code ec,
@@ -161,6 +163,17 @@ public:
 
     }
 
+    virtual
+    void do_write_once(std::string to_send) {
+        buffer_.consume(buffer_.size());
+        ws_.async_write(
+                boost::asio::buffer(to_send, to_send.length()),
+                beast::bind_front_handler(
+                        &S::on_write_once,
+                        std::enable_shared_from_this<S>::shared_from_this()));
+    }
+
+    virtual
     void do_write(std::string to_send) {
         buffer_.consume(buffer_.size());
         ws_.async_write(
@@ -170,8 +183,9 @@ public:
                         std::enable_shared_from_this<S>::shared_from_this()));
     }
 
+    virtual
     void
-    on_write(
+    on_write_once(
             beast::error_code ec,
             std::size_t bytes_transferred) {
         boost::ignore_unused(bytes_transferred);
@@ -181,11 +195,20 @@ public:
             return;
         if (ec)
             return socketError(ec, "write");
+    }
 
+    virtual
+    void
+    on_write(
+            beast::error_code ec,
+            std::size_t bytes_transferred) {
+        boost::ignore_unused(bytes_transferred);
 
+        on_write_once(ec,bytes_transferred);
         do_read();
     }
 
+    virtual
     void
     on_close(beast::error_code ec) {
         std::cout << "Closing socket" << std::endl;

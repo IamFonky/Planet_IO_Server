@@ -4,7 +4,7 @@ project(planetIO)
 set(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_CXX_FLAGS -pthread)
 
-add_executable(planetIO main.cpp  stellarPrimitives.cpp stellarEngine.cpp Websocket/dataServer.cpp Websocket/eventServer.cpp Websocket/serverHelpers.cpp)
+add_executable(planetIO main.cpp  stellarPrimitives.cpp stellarEngine.cpp Websocket/dataServer.cpp Websocket/controlServer.cpp Websocket/serverHelpers.cpp Websocket/server.hpp Websocket/eventServer.cpp)
 
 # see https://cmake.org/cmake/help/latest/module/FindBoost.html
 find_package(Boost REQUIRED COMPONENTS)

@@ -34,6 +34,7 @@ void displayBody(Body body) {
 void displayBody(Body body, bool displayDead) {
     if (displayDead || body.radius > 0) {
         cout << "Body of player : " << body.playerId;
+        cout << " => " << (body.radius > 0 ? "ALIVE" : "DEAD");
         cout << " , position : (";
         displayVector(body.position);
         cout << ") , speed : (";

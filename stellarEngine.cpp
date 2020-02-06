@@ -10,53 +10,154 @@
 
 using namespace std;
 
+void createEvent(Events *events, std::string message, unsigned player_id) {
+    events->last_event_id = last_event_id;
+    events->events[last_event_id % NB_EVENTS].message = message;
+    events->events[last_event_id % NB_EVENTS].player_id = player_id;
+    events->events[last_event_id % NB_EVENTS].event_id = last_event_id++;
+}
+
 Blackhole createBlackhole(double x, double y, short level) {
     Blackhole blackhole;
     blackhole.position.x = x;
     blackhole.position.y = y;
     blackhole.mass = EARTH_MASS * 100 * level;
-
     blackhole.radius = 25.;
-
     return blackhole;
 }
 
-Body createStellarBody(unsigned playerId) {
-    Body body;
+void createStellarBody(Body *body, unsigned playerId) {
+    body->position.x = (double) rand() / (double) RAND_MAX * UNIVERSE_SIZE;
+    body->position.y = (double) rand() / (double) RAND_MAX * UNIVERSE_SIZE;
 
-    body.position.x = (double) rand() / (double) RAND_MAX * UNIVERSE_SIZE;
-    body.position.y = (double) rand() / (double) RAND_MAX * UNIVERSE_SIZE;
+    body->composition.gaz = (double) rand() / (double) RAND_MAX * EARTH_MASS / 30.0 + MOON_MASS;
+    body->composition.water = (double) rand() / (double) RAND_MAX * EARTH_MASS / 30.0 + MOON_MASS;
+    body->composition.earth = (double) rand() / (double) RAND_MAX * EARTH_MASS / 30.0 + MOON_MASS;
 
-    body.composition.gaz = (double) rand() / (double) RAND_MAX * EARTH_MASS / 30.0 + MOON_MASS;
-    body.composition.water = (double) rand() / (double) RAND_MAX * EARTH_MASS / 30.0 + MOON_MASS;
-    body.composition.earth = (double) rand() / (double) RAND_MAX * EARTH_MASS / 30.0 + MOON_MASS;
+    double mass = body->composition.gaz + body->composition.water + body->composition.earth;
+    body->speed.x = (double) rand() / (double) RAND_MAX * MOON_MASS / (mass * mass);
+    body->speed.y = (double) rand() / (double) RAND_MAX * MOON_MASS / (mass * mass);
 
-    double mass = body.composition.gaz + body.composition.water + body.composition.earth;
-    body.speed.x = (double) rand() / (double) RAND_MAX * MOON_MASS / (mass * mass);
-    body.speed.y = (double) rand() / (double) RAND_MAX * MOON_MASS / (mass * mass);
-
-    body.radius = (double) rand() / (double) RAND_MAX * 1;
-    body.playerId = playerId;
-
-    return body;
+    body->radius = (double) rand() / (double) RAND_MAX * 1;
+    body->playerId = playerId;
 }
 
-void createStellarBodies(Body bodies[], bool deadBodies[], size_t max_bodies) {
+void createStellarBodies(Body bodies[], bool deadBodies[], size_t max_bodies, bool alive) {
     for (int i = 0; i < max_bodies; i++) {
         if (deadBodies[i]) {
-            deadBodies[i] = false;
-            bodies[i] = createStellarBody();
+            deadBodies[i] = !alive;
+            createStellarBody(&bodies[i]);
         }
     }
 }
 
+void createWrecks(Body bodies[], bool deadBodies[], double *crash_mass, Vector *crash_position, Vector *crash_speed) {
+    double mass = *crash_mass;
+    auto nb_wrecks = (short) round(rand() / (double) RAND_MAX * 7 + 3);
+    double wreck_mass;
+    Vector position;
 
-void moveBodies(double dt, Body bodies[], bool deadBodies[], Blackholes *blackholes) {
+    short proportions[10];
+    short total_proportions = 0;
+    for (size_t i = 0; i < nb_wrecks; ++i) {
+        proportions[i] = (short) (rand() / (double) RAND_MAX * 100) + (short)1;
+        total_proportions += proportions[i];
+    }
+
+    Composition composition;
+    composition.gaz = rand() / (double) RAND_MAX;
+    composition.water = rand() / (double) RAND_MAX;
+    composition.earth = rand() / (double) RAND_MAX;
+//    cout << "composition" << endl;
+//    displayComposition(composition);
+//    cout << endl;
+//
+    double total_compositions = composition.gaz + composition.water + composition.earth;
+    Composition composition_prop;
+    composition_prop.gaz = composition.gaz / total_compositions;
+    composition_prop.earth = composition.earth / total_compositions;
+    composition_prop.water = composition.water / total_compositions;
+//    cout << "composition_prop" << endl;
+//    displayComposition(composition_prop);
+//    cout << endl;
+
+
+    double total_volume = mass * composition_prop.gaz / CompositonMV::gaz
+                          + mass * composition_prop.water / CompositonMV::water
+                          + mass * composition_prop.earth / CompositonMV::earth;
+    double total_radius = cbrt(total_volume * 3.0 / 4.0 / (double) M_PI);
+
+    double inertia = /*mass * */ sqrt(crash_speed->x * crash_speed->x + crash_speed->y * crash_speed->y);
+    cout << "======================================" << endl;
+    cout << "BOOOM "<< nb_wrecks <<endl;
+    cout << "CRASH POSITION " << endl;
+    displayVector(*crash_position);
+    cout << endl;
+
+    for (int i = NB_NON_WRECKS; i < NB_BODIES && nb_wrecks > 0; i++) {
+        if (deadBodies[i]) {
+            deadBodies[i] = false;
+
+            wreck_mass = mass * (double) proportions[nb_wrecks - 1] / (double) total_proportions;
+
+            bodies[i].composition.gaz = wreck_mass * composition_prop.gaz;
+            bodies[i].composition.water = wreck_mass * composition_prop.water;
+            bodies[i].composition.earth = wreck_mass * composition_prop.earth;
+
+            position.x = total_radius * (rand() / (double) RAND_MAX * 2. - 1. ) + DBL_MIN;
+            position.y = sqrt(total_radius * total_radius - position.x * position.x) * round(rand() / RAND_MAX * 2 - 1) + DBL_MIN;
+
+            cout << "RELATIVE POSITION " << endl;
+            displayVector(position);
+            cout << endl;
+
+            bodies[i].position.x = position.x + crash_position->x;
+            bodies[i].position.y = position.y + crash_position->y;
+
+            cout << "ABSOLUTE POSITION " << endl;
+            displayVector(bodies[i].position);
+            cout << endl;
+
+            bodies[i].speed.x = inertia / wreck_mass * position.x / (position.x + position.y);
+            bodies[i].speed.y = inertia / wreck_mass * position.y / (position.x + position.y);
+
+            bodies[i].radius = 0;
+            bodies[i].playerId = 0;
+
+            cout << "MASS " << mass << endl;
+            cout << "WRECK MASS " << wreck_mass << endl;
+            cout << "SPEED" << endl;
+            displayVector(bodies[i].speed);
+            cout << endl;
+
+
+            --nb_wrecks;
+        }
+    }
+    cout << "======================================" << endl;
+}
+
+void fillEmptyWrecks(Body bodies[]) {
+    for (size_t i = NB_NON_WRECKS; i < NB_BODIES; ++i) {
+        bodies[i].playerId = 0;
+        bodies[i].radius = 0.;
+        bodies[i].position.x = 0.;
+        bodies[i].position.y = 0.;
+        bodies[i].composition.gaz = 0.;
+        bodies[i].composition.water = 0.;
+        bodies[i].composition.earth = 0.;
+        bodies[i].speed.x = 0.;
+        bodies[i].speed.y = 0.;
+    }
+}
+
+void moveBodies(double dt, Universe *universe) {
     for (int i = 0; i < NB_BODIES; ++i) {
 
         // Get data from body and initialize var
-        Vector bodyPosition = bodies[i].position;
-        Composition bodyComposition = bodies[i].composition;
+        Vector bodyPosition = universe->bodies[i].position;
+        Vector bodySpeed = universe->bodies[i].speed;
+        Composition bodyComposition = universe->bodies[i].composition;
         double bodyMass = bodyComposition.gaz + bodyComposition.water + bodyComposition.earth;
         double bodyVolume = bodyComposition.gaz / CompositonMV::gaz
                             + bodyComposition.water / CompositonMV::water
@@ -67,23 +168,33 @@ void moveBodies(double dt, Body bodies[], bool deadBodies[], Blackholes *blackho
         Vector v_acceleration;
         v_acceleration.x = 0.0;
         v_acceleration.y = 0.0;
+        Vector crash_position;
+        crash_position.x = 0.0;
+        crash_position.y = 0.0;
+        Vector crash_speed;
+        crash_speed.x = 0.0;
+        crash_speed.y = 0.0;
+        double crashed_mass = 0.0;
+
         bool collide = false;
+        bool explode = false;
 
         for (int j = 0; j < NB_BODIES; ++j) {
             // Get body values
-            Vector body2Position = bodies[j].position;
-            Composition body2Composition = bodies[j].composition;
+            Vector body2Position = universe->bodies[j].position;
+            Vector body2Speed = universe->bodies[j].speed;
+            Composition body2Composition = universe->bodies[j].composition;
             double body2Mass = body2Composition.gaz + body2Composition.water + body2Composition.earth;
             double body2Surface = body2Composition.gaz / CompositonMV::gaz
                                   + body2Composition.water / CompositonMV::water
                                   + body2Composition.earth / CompositonMV::earth;
             double body2Radius = cbrt(body2Surface * 3.0 / 4.0 / (double) M_PI);
 
-            // Calculates distance between bodies
+            // Calculates distance between universe->bodies
             Vector d_simple;
             d_simple.x = body2Position.x - bodyPosition.x;
             d_simple.y = body2Position.y - bodyPosition.y;
-            // Calculates square distance between bodies
+            // Calculates square distance between universe->bodies
             Vector d_square;
             d_square.x = d_simple.x * d_simple.x;
             d_square.y = d_simple.y * d_simple.y;
@@ -104,13 +215,28 @@ void moveBodies(double dt, Body bodies[], bool deadBodies[], Blackholes *blackho
             // Checks for collisions
             bool crash = ((distance - bodyRadius - body2Radius) <= 0.0);
             bool lighter = (bodyMass < body2Mass);
-            collide |= (isDifferentBody && crash && lighter);
+            bool critically_lighter = ((bodyMass - body2Mass * CRITICAL_RATIO) < body2Mass);
+            bool collide_now = (isDifferentBody && crash && lighter);
+            bool explode_now = (isDifferentBody && crash && critically_lighter);
+            bool is_wreck = i >= WRECKS_INDEX;
+            collide |= collide_now;
+            explode |= explode_now && !is_wreck;
+
+            crash_position.x += (bodyPosition.x + body2Position.x) / 2.0 * explode_now;
+            crash_position.y += (bodyPosition.y + body2Position.y) / 2.0 * explode_now;
+            crash_speed.x += (sqrt(bodySpeed.x * bodySpeed.x) + sqrt(body2Speed.x * body2Speed.x)) * explode_now;
+            crash_speed.y += (sqrt(bodySpeed.y * bodySpeed.y) + sqrt(body2Speed.y * body2Speed.y)) * explode_now;
+            crashed_mass += (bodyMass + body2Mass) * explode_now;
 
             // Add masses if collision occures and body is heavier
             bool eatBody2 = (isDifferentBody && crash && !lighter);
-            bodyComposition.gaz += body2Composition.gaz * eatBody2;
-            bodyComposition.water += body2Composition.water * eatBody2;
-            bodyComposition.earth += body2Composition.earth * eatBody2;
+            universe->bodies[i].composition.gaz += body2Composition.gaz * eatBody2;
+            universe->bodies[i].composition.water += body2Composition.water * eatBody2;
+            universe->bodies[i].composition.earth += body2Composition.earth * eatBody2;
+
+            universe->bodies[j].composition.gaz = body2Composition.gaz * !eatBody2;
+            universe->bodies[j].composition.water = body2Composition.water * !eatBody2;
+            universe->bodies[j].composition.earth = body2Composition.earth * !eatBody2;
 
             // Calculates acceleration
             double acceleration = body2Mass / d_square_sum;
@@ -136,15 +262,15 @@ void moveBodies(double dt, Body bodies[], bool deadBodies[], Blackholes *blackho
         // INTERACTION WITH BLACKHOLE
         /////////////////////////////////////////////////////////////////////////////////////
 
-//        std::map<int, Blackhole>::iterator blackhole;
-//        if((blackhole = blackholes->find(bodies[i].playerId)) != blackholes->end()){
-        std::map<int, Blackhole>::iterator blackhole = blackholes->begin();
-        while (blackhole != blackholes->end()) {
-            // Calculates distance between bodies
+        std::map<int, Blackhole>::iterator blackhole;
+        if ((blackhole = universe->blackholes->find(universe->bodies[i].playerId)) != universe->blackholes->end()) {
+//        std::map<int, Blackhole>::iterator blackhole = universe->blackholes->begin();
+//        while (blackhole != universe->blackholes->end()) {
+            // Calculates distance between universe->bodies
             Vector d_simple;
             d_simple.x = blackhole->second.position.x - bodyPosition.x;
             d_simple.y = blackhole->second.position.y - bodyPosition.y;
-            // Calculates square distance between bodies
+            // Calculates square distance between universe->bodies
             Vector d_square;
             d_square.x = d_simple.x * d_simple.x;
             d_square.y = d_simple.y * d_simple.y;
@@ -177,44 +303,57 @@ void moveBodies(double dt, Body bodies[], bool deadBodies[], Blackholes *blackho
         // END INTERACTION WITH BLACKHOLE
         /////////////////////////////////////////////////////////////////////////////////////
 
+//        bool died = (collide || explode);
+        bool died = collide;
 
         // Set mass and radius to 0 if body got eaten by big one
-        bodies[i].composition.gaz = bodyComposition.gaz * !collide + collide * 0.001;
-        bodies[i].composition.water = bodyComposition.water * !collide + collide * 0.001;
-        bodies[i].composition.earth = bodyComposition.earth * !collide + collide * 0.001;
-        bodies[i].radius = bodyRadius * !collide;
+//        universe->bodies[i].composition.gaz = universe->bodies[i].composition.gaz * !died + died * 0.001;
+//        universe->bodies[i].composition.water = universe->bodies[i].composition.gaz * !died + died * 0.001;
+//        universe->bodies[i].composition.earth = universe->bodies[i].composition.gaz * !died + died * 0.001;
+        universe->bodies[i].radius = bodyRadius * !died;
 
-        deadBodies[i] = collide;
+        universe->dead_bodies[i] |= died;
+
+        if (explode) {
+//            createWrecks(universe->bodies, universe->dead_bodies, &crashed_mass, &crash_position, &crash_speed);
+        }
+        else if (collide) {
+            if (universe->bodies[i].playerId > 0) {
+                createEvent(universe->events,
+                            "{\"message\" : \"PLAYER_DIED\" , \"id\" : " + to_string(universe->bodies[i].playerId) +
+                            "}",
+                            universe->bodies[i].playerId);
+            }
+        }
 
         // Applies acceleration to speed on dt
-        bodies[i].speed.x += v_acceleration.x * dt;
-        bodies[i].speed.y += v_acceleration.y * dt;
+        universe->bodies[i].speed.x += v_acceleration.x * dt;
+        universe->bodies[i].speed.y += v_acceleration.y * dt;
 
         // Quick workadoung to avoid nan
         // TODO : FIND THE CAUSE OF NAN :P
-        bodies[i].speed.x = isnan(bodies[i].speed.x) ? 0 : bodies[i].speed.x;
-        bodies[i].speed.y = isnan(bodies[i].speed.y) ? 0 : bodies[i].speed.y;
+        universe->bodies[i].speed.x = isnan(universe->bodies[i].speed.x) ? 0 : universe->bodies[i].speed.x;
+        universe->bodies[i].speed.y = isnan(universe->bodies[i].speed.y) ? 0 : universe->bodies[i].speed.y;
 
 
         // Applies speed to position on dt
-        bodies[i].position.x += bodies[i].speed.x * dt;
-        bodies[i].position.y += bodies[i].speed.y * dt;
+        universe->bodies[i].position.x += universe->bodies[i].speed.x * dt;
+        universe->bodies[i].position.y += universe->bodies[i].speed.y * dt;
 
 
 
         // Gravity management on the edges to discuss
         // Make universe finite
-        bool outRigth = bodies[i].position.x > UNIVERSE_SIZE;
-        bool outLeft = bodies[i].position.x < 0;
-        bool outBottom = bodies[i].position.y > UNIVERSE_SIZE;
-        bool outTop = bodies[i].position.y < 0;
+        bool outRigth = universe->bodies[i].position.x > UNIVERSE_SIZE;
+        bool outLeft = universe->bodies[i].position.x < 0;
+        bool outBottom = universe->bodies[i].position.y > UNIVERSE_SIZE;
+        bool outTop = universe->bodies[i].position.y < 0;
 
-        bodies[i].position.x = 0.0 * (double) outRigth + UNIVERSE_SIZE * (double) outLeft +
-                               bodies[i].position.x * (double) !(outRigth || outLeft);
-        bodies[i].position.y = 0.0 * (double) outBottom + UNIVERSE_SIZE * (double) outTop +
-                               bodies[i].position.y * (double) !(outRigth || outLeft);
+        universe->bodies[i].position.x = 0.0 * (double) outRigth + UNIVERSE_SIZE * (double) outLeft +
+                                         universe->bodies[i].position.x * (double) !(outRigth || outLeft);
+        universe->bodies[i].position.y = 0.0 * (double) outBottom + UNIVERSE_SIZE * (double) outTop +
+                                         universe->bodies[i].position.y * (double) !(outRigth || outLeft);
 
 
     }
 }
-

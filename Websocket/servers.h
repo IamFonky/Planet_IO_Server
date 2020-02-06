@@ -10,7 +10,9 @@
 
 void socketError(boost::beast::error_code ec, char const *what);
 
-void dataServer(std::string strAddress, unsigned short port, unsigned short nbThreads, Body *bodies);
+void dataServer(std::string strAddress, unsigned short port, unsigned short nbThreads, Universe *universe);
+
+void controlServer(std::string strAddress, unsigned short port, unsigned short nbThreads, Universe *universe);
 
 void eventServer(std::string strAddress, unsigned short port, unsigned short nbThreads, Universe *universe);
 

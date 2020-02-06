@@ -11,53 +11,48 @@
 
 using namespace std;
 
-bool running = true;
-bool displaying = false;
-bool paused = false;
-bool autoRespawn = true;
-
-
-void bodiesEvents(Body bodies[], bool deadBodies[]) {
+void bodiesEvents(Universe *universe) {
     auto tDeadBodies = chrono::system_clock::now();
 
-    while (running) {
-        while (paused);
+    while (universe->parameters->running) {
+        while (universe->parameters->paused);
         auto tEnd = chrono::system_clock::now();
-        if (autoRespawn && (tEnd - tDeadBodies).count() > 500000000.0) {
-            createStellarBodies(bodies, deadBodies);
+        if (universe->parameters->auto_respawn && (tEnd - tDeadBodies).count() > 500000000.0) {
+            createStellarBodies(universe->bodies, universe->dead_bodies);
             tDeadBodies = chrono::system_clock::now();
         }
     }
 }
 
-void bodiesEngine(Body *bodies, bool deadBodies[], Blackholes *blackholes) {
+void bodiesEngine(Universe *universe) {
     auto tInit = chrono::system_clock::now();
 
-    while (running /*&& test < 2*/) {
-        while (paused);
+    while (universe->parameters->running) {
+        while (universe->parameters->paused);
         auto tEnd = chrono::system_clock::now();
         double dt = (tEnd - tInit).count() / 1000000000.0;
-        moveBodies(dt, bodies, deadBodies, blackholes);
+        moveBodies(dt, universe);
         tInit = tEnd;
+        usleep(10000);
     }
 }
 
 
-void displayTask(Body *bodies, bool deadBodies[]) {
-    while (running) {
-        while (displaying) {
-            while (paused);
+void displayTask(Universe *universe) {
+    while (universe->parameters->running) {
+        while (universe->parameters->displaying) {
+            while (universe->parameters->paused);
             for (int i = 0; i < NB_BODIES; ++i) {
-                displayBody(bodies[i]);
-                cout << deadBodies[i] ? "DEAD" : "ALIVE";
+                displayBody(universe->bodies[i]);
+                cout << universe->dead_bodies[i] ? "DEAD" : "ALIVE";
             }
         }
     }
 }
 
-void controls(Body bodies[], bool deadBodies[]) {
+void controls(Universe *universe) {
     string arg;
-    while (running) {
+    while (universe->parameters->running) {
         cout << "Commands : " << endl;
         cout << " OUTPUT - toggle show/hide logs" << endl;
         cout << " RESTART - restart the server" << endl;
@@ -68,70 +63,83 @@ void controls(Body bodies[], bool deadBodies[]) {
         cin >> arg;
         if (arg.find("OUTPUT") != string::npos) {
             for (int i = 0; i < NB_BODIES; ++i) {
-                displayBody(bodies[i]);
-                cout << deadBodies[i] ? "DEAD" : "ALIVE";
+                displayBody(universe->bodies[i]);
             }
         }
         if (arg.find("RESTART") != string::npos) {
-            paused = true;
-            std::fill_n(deadBodies, NB_BODIES, true);
-            createStellarBodies(bodies, deadBodies);
-            paused = false;
+            universe->parameters->paused = true;
+            std::fill_n(universe->dead_bodies, NB_BODIES, true);
+            createStellarBodies(universe->bodies, universe->dead_bodies);
+
+            universe->parameters->paused = false;
             cout << "RESTARTED" << endl;
         }
         if (arg.find("RESPAWN") != string::npos) {
-            createStellarBodies(bodies, deadBodies);
+            createStellarBodies(universe->bodies, universe->dead_bodies);
             cout << "RESPAWNED" << endl;
         }
         if (arg.find("AUTO_RESPAWN") != string::npos) {
-            autoRespawn != autoRespawn;
-            cout << "auto respawn : " << autoRespawn << endl;
+            universe->parameters->auto_respawn != universe->parameters->auto_respawn;
+            cout << "auto respawn : " << universe->parameters->auto_respawn << endl;
         }
         if (arg.find("PAUSE") != string::npos) {
-            paused != paused;
+            universe->parameters->paused != universe->parameters->paused;
             cout << (pause ? "PAUSED" : "STARTED") << endl;
         }
         if (arg.find("QUIT") != string::npos) {
             cout << "Just CTRL + C now!";
-            running = false;
-        }
-
-        //Periodic actions
-        if (displaying) {
-            for (int i = 0; i < NB_BODIES; ++i) {
-                displayBody(bodies[i]);
-                cout << deadBodies[i] ? "DEAD" : "ALIVE";
-            }
+            universe->parameters->running = false;
         }
     }
 }
 
 int main() {
     Body bodies[NB_BODIES];
-    bool deadBodies[NB_BODIES];
+    bool dead_bodies[NB_BODIES];
     Blackholes blackholes;
+    Event events[NB_EVENTS];
+    Events events_state;
+    events_state.last_event_id = last_event_id;
+    events_state.events = events;
+    Players players;
+    ServerParameters parameters;
+
+
+
 
     Universe universe;
-    universe.blackholes = &blackholes;
     universe.bodies = bodies;
+    universe.dead_bodies = dead_bodies;
+    universe.blackholes = &blackholes;
+    universe.events = &events_state;
+    universe.players = &players;
+    universe.parameters = &parameters;
 
-    std::fill_n(deadBodies, NB_BODIES, true);
-    createStellarBodies(bodies, deadBodies, NB_BODIES);
+    std::fill_n(dead_bodies, NB_BODIES, true);
+    createStellarBodies(bodies, dead_bodies, NB_NON_WRECKS, false);
+    fillEmptyWrecks(bodies);
 
-    thread tUniverse(bodiesEngine, bodies, deadBodies, &blackholes);
-    thread tUniverseEvents(bodiesEvents, bodies, deadBodies);
-    thread tDisplay(displayTask, bodies, deadBodies);
-    thread tControl(controls, bodies, deadBodies);
-    thread tDataServer(dataServer, "127.0.0.1", 28015, 1, bodies);
-    thread tEventServer(eventServer, "127.0.0.1", 28016, 1, &universe);
+    for (int i = 0; i < NB_BODIES; ++i) {
+        displayBody(universe.bodies[i]);
+    }
 
-    while (running);
+
+    thread tUniverse(bodiesEngine, &universe);
+    thread tUniverseEvents(bodiesEvents, &universe);
+    thread tDisplay(displayTask, &universe);
+    thread tControl(controls,&universe);
+    thread tDataServer(dataServer, "127.0.0.1", 28015, 1, &universe);
+    thread tControlServer(controlServer, "127.0.0.1", 28016, 1, &universe);
+    thread tEventServer(eventServer, "127.0.0.1", 28017, 1, &universe);
+
+    while (parameters.running);
 
     tUniverse.detach();
     tUniverseEvents.detach();
     tDisplay.detach();
     tControl.detach();
     tDataServer.detach();
+    tControlServer.detach();
     tEventServer.detach();
 
     return 0;

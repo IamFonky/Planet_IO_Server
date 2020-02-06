@@ -6,20 +6,50 @@
 #include "stellarPrimitives.h"
 #include "engineConstants.h"
 
-typedef std::map<int, Blackhole> Blackholes;
-typedef std::map<int, std::string> Players;
-
-struct Universe {
-    Blackholes *blackholes;
-    Body *bodies;
+struct ServerParameters {
+    bool running = true;
+    bool displaying = false;
+    bool paused = false;
+    bool auto_respawn = true;
 };
+
+static unsigned long long last_event_id = 0;
+
+struct Event {
+    unsigned long long event_id;
+    unsigned player_id;
+    std::string message;
+};
+
+struct Events {
+    unsigned long long last_event_id;
+    Event *events;
+};
+
+void createEvent(Events *events, std::string message, unsigned player_id = 0);
+
+typedef std::map<int, Blackhole> Blackholes;
+typedef std::map<std::string,int> Players;
 
 Blackhole createBlackhole(double x, double y, short level);
 
-Body createStellarBody(unsigned playerId = 0);
+void createStellarBody(Body* body, unsigned playerId = 0);
 
-void createStellarBodies(Body bs[], bool deadBodies[], size_t max_bodies = NB_BODIES - NB_PLAYERS);
+void createStellarBodies(Body bodies[], bool deadBodies[], size_t max_bodies = NB_BODIES - NB_PLAYERS, bool alive = true);
 
-void moveBodies(double dt, Body bs[], bool deadBodies[], Blackholes *blackholes);
+void createWrecks(Body bodies[], bool deadBodies[], double* crash_mass, Vector *crash_position, Vector *crash_speed);
+
+void fillEmptyWrecks(Body bodies[]);
+
+struct Universe {
+    ServerParameters* parameters;
+    Body *bodies;
+    bool *dead_bodies;
+    Blackholes *blackholes;
+    Events *events;
+    Players *players;
+};
+
+void moveBodies(double dt, Universe *universe);
 
 #endif //PLANETIO_STELLARENGINE_H
