@@ -1,7 +1,7 @@
 #include <cstdlib>
-#include <math.h>
+#include <cmath>
 #include <iostream>
-#include <float.h>
+#include <cfloat>
 
 #include "stellarEngine.h"
 #include "stellarPrimitives.h"
@@ -215,7 +215,7 @@ void moveBodies(double dt, Universe *universe) {
             // Checks for collisions
             bool crash = ((distance - bodyRadius - body2Radius) <= 0.0);
             bool lighter = (bodyMass < body2Mass);
-            bool critically_lighter = ((bodyMass - body2Mass * CRITICAL_RATIO) < body2Mass);
+            bool critically_lighter = std::abs(bodyMass - body2Mass) < (bodyMass + body2Mass) * CRITICAL_RATIO;
             bool collide_now = (isDifferentBody && crash && lighter);
             bool explode_now = (isDifferentBody && crash && critically_lighter);
             bool is_wreck = i >= WRECKS_INDEX;
@@ -315,9 +315,9 @@ void moveBodies(double dt, Universe *universe) {
         universe->dead_bodies[i] |= died;
 
         if (explode) {
-//            createWrecks(universe->bodies, universe->dead_bodies, &crashed_mass, &crash_position, &crash_speed);
+            createWrecks(universe->bodies, universe->dead_bodies, &crashed_mass, &crash_position, &crash_speed);
         }
-        else if (collide) {
+        if (collide) {
             if (universe->bodies[i].playerId > 0) {
                 createEvent(universe->events,
                             "{\"message\" : \"PLAYER_DIED\" , \"id\" : " + to_string(universe->bodies[i].playerId) +

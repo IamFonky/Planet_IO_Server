@@ -48,6 +48,7 @@ struct Universe {
     Blackholes *blackholes;
     Events *events;
     Players *players;
+    bool *used_slots;
 };
 
 void moveBodies(double dt, Universe *universe);

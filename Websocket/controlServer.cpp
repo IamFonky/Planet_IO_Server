@@ -35,11 +35,9 @@ using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 
 // Echoes back all received WebSocket messages
 class ControlSession : public Session<Universe, ControlSession> {
-    bool usedSlots[NB_PLAYERS];
-
     size_t findEmptySlot(){
         for(int i = 0 ; i < NB_PLAYERS; ++i){
-            if(!usedSlots[i]){
+            if(!data_->used_slots[i]){
                 return i;
             }
         }
@@ -51,7 +49,6 @@ public:
     explicit
     ControlSession(tcp::socket &&eventSocket, Universe *universe) :
             Session<Universe, ControlSession>(std::move(eventSocket), universe) {
-        std::fill_n(usedSlots,NB_PLAYERS,true);
     }
 
     void
@@ -102,7 +99,8 @@ public:
                     if(inserted.second) {
                         size_t free_slot = findEmptySlot();
                         if (free_slot >= 0) {
-                            usedSlots[free_slot] = false;
+                            data_->used_slots[free_slot] = true;
+                            data_->dead_bodies[free_slot + PLAYER_INDEX] = false;
                             createStellarBody(&(data_->bodies[free_slot + PLAYER_INDEX]),session_id);
                             do_write(
                                     R"({"message" : "PLAYER_ACCEPTED", "id" : )" + std::to_string(session_id) + R"( , "name" : ")" + player_name + R"(" })");

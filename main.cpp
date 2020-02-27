@@ -103,7 +103,12 @@ int main() {
     events_state.events = events;
     Players players;
     ServerParameters parameters;
+    bool used_slots[NB_PLAYERS];
 
+    std::fill_n(dead_bodies, NB_BODIES, true);
+    createStellarBodies(bodies, dead_bodies, NB_NON_WRECKS, false);
+    fillEmptyWrecks(bodies);
+    std::fill_n(used_slots,NB_PLAYERS,false);
 
 
 
@@ -114,10 +119,8 @@ int main() {
     universe.events = &events_state;
     universe.players = &players;
     universe.parameters = &parameters;
+    universe.used_slots = used_slots;
 
-    std::fill_n(dead_bodies, NB_BODIES, true);
-    createStellarBodies(bodies, dead_bodies, NB_NON_WRECKS, false);
-    fillEmptyWrecks(bodies);
 
     for (int i = 0; i < NB_BODIES; ++i) {
         displayBody(universe.bodies[i]);
@@ -128,9 +131,9 @@ int main() {
     thread tUniverseEvents(bodiesEvents, &universe);
     thread tDisplay(displayTask, &universe);
     thread tControl(controls,&universe);
-    thread tDataServer(dataServer, "127.0.0.1", 28015, 1, &universe);
-    thread tControlServer(controlServer, "127.0.0.1", 28016, 1, &universe);
-    thread tEventServer(eventServer, "127.0.0.1", 28017, 1, &universe);
+    thread tDataServer(dataServer, SERVER_IP, 28015, 1, &universe);
+    thread tControlServer(controlServer, SERVER_IP, 28016, 1, &universe);
+    thread tEventServer(eventServer, SERVER_IP, 28017, 1, &universe);
 
     while (parameters.running);
 
